@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Poker Table</title>
     <link rel="stylesheet" href="main.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="main.js" defer></script>
 </head>
 <body>
     <main class="container">
         <section class="table">
             <div class="seat top" aria-label="Opponent 1">
-                <p>Opponent 1</p>
+                <p></p>
                 <div class="cards">
                     <div class="card back"></div>
                     <div class="card back"></div>
@@ -18,7 +20,7 @@
             </div>
 
             <div class="seat top-left" aria-label="Opponent 2">
-                <p>Opponent 2</p>
+                <p></p>
                 <div class="cards">
                     <div class="card back"></div>
                     <div class="card back"></div>
@@ -26,7 +28,7 @@
             </div>
 
             <div class="seat top-right" aria-label="Opponent 3">
-                <p>Opponent 3</p>
+                <p></p>
                 <div class="cards">
                     <div class="card back"></div>
                     <div class="card back"></div>
@@ -34,7 +36,7 @@
             </div>
 
             <div class="seat left" aria-label="Opponent 4">
-                <p>Opponent 4</p>
+                <p></p>
                 <div class="cards">
                     <div class="card back"></div>
                     <div class="card back"></div>
@@ -42,7 +44,7 @@
             </div>
 
             <div class="seat right" aria-label="Opponent 5">
-                <p>Opponent 5</p>
+                <p></p>
                 <div class="cards">
                     <div class="card back"></div>
                     <div class="card back"></div>
@@ -50,7 +52,7 @@
             </div>
 
             <div class="seat bottom-left" aria-label="Opponent 6">
-                <p>Opponent 6</p>
+                <p></p>
                 <div class="cards">
                     <div class="card back"></div>
                     <div class="card back"></div>
@@ -58,7 +60,7 @@
             </div>
 
             <div class="seat bottom-right" aria-label="Opponent 7">
-                <p>Opponent 7</p>
+                <p></p>
                 <div class="cards">
                     <div class="card back"></div>
                     <div class="card back"></div>
@@ -68,12 +70,15 @@
             <div class="seat you" aria-label="You">
                 <p>You</p>
                 <div class="cards">
-                    <div class="card">A♠</div>
-                    <div class="card red">K♥</div>
+                    <div class="card playerCard1"></div>
+                    <div class="card playerCard2"></div>
                 </div>
             </div>
 
-            <div class="pot">Pot: $0</div>
+            <div id="communityCards" class="community-cards" aria-label="Community cards"></div>
+ 
+            <button id="startRoundBtn" class="start-round-btn" type="button">Start Round</button>
+            <button id="toggleCardStyleBtn" class="card-style-btn" type="button">Use Suit Backgrounds</button>
         </section>
     </main>
 </body>

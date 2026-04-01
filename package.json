@@ -1,0 +1,24 @@
+{
+  "name": "poker-prosjekt-it1",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/didriksn/Poker-prosjekt-IT1#readme",
+  "bugs": {
+    "url": "https://github.com/didriksn/Poker-prosjekt-IT1/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/didriksn/Poker-prosjekt-IT1.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.3"
+  }
+}
