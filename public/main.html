@@ -10,8 +10,31 @@
 </head>
 <body>
     <main class="container">
+        <section class="seat-picker" aria-label="Choose your seat">
+            <p id="seatPickerStatus">Choose a seat (1-8) to join the table.</p>
+            <div id="seatPickerButtons" class="seat-picker-buttons"></div>
+        </section>
+
+        <section id="seatChoiceModal" class="seat-choice-modal" aria-label="Seat details" aria-hidden="true">
+            <div class="seat-choice-modal-content">
+                <h2 id="seatChoiceTitle">Join Seat</h2>
+                <label for="seatPlayerName">Name (min 3 chars)</label>
+                <input id="seatPlayerName" type="text" minlength="3" maxlength="24" autocomplete="off" required>
+
+                <label for="seatPlayerChips">Starting chips</label>
+                <input id="seatPlayerChips" type="number" min="0" step="1" value="1000" required>
+
+                <p id="seatChoiceError" class="seat-choice-error"></p>
+
+                <div class="seat-choice-actions">
+                    <button id="seatChoiceCancel" type="button">Cancel</button>
+                    <button id="seatChoiceConfirm" type="button">Confirm Seat</button>
+                </div>
+            </div>
+        </section>
+
         <section class="table">
-            <div class="seat top" aria-label="Opponent 1">
+            <div class="seat slot-top" data-slot="4" aria-label="Seat slot">
                 <p></p>
                 <div class="cards">
                     <div class="card back"></div>
@@ -19,7 +42,7 @@
                 </div>
             </div>
 
-            <div class="seat top-left" aria-label="Opponent 2">
+            <div class="seat slot-top-left" data-slot="3" aria-label="Seat slot">
                 <p></p>
                 <div class="cards">
                     <div class="card back"></div>
@@ -27,7 +50,7 @@
                 </div>
             </div>
 
-            <div class="seat top-right" aria-label="Opponent 3">
+            <div class="seat slot-top-right" data-slot="5" aria-label="Seat slot">
                 <p></p>
                 <div class="cards">
                     <div class="card back"></div>
@@ -35,7 +58,7 @@
                 </div>
             </div>
 
-            <div class="seat left" aria-label="Opponent 4">
+            <div class="seat slot-left" data-slot="2" aria-label="Seat slot">
                 <p></p>
                 <div class="cards">
                     <div class="card back"></div>
@@ -43,7 +66,7 @@
                 </div>
             </div>
 
-            <div class="seat right" aria-label="Opponent 5">
+            <div class="seat slot-right" data-slot="6" aria-label="Seat slot">
                 <p></p>
                 <div class="cards">
                     <div class="card back"></div>
@@ -51,7 +74,7 @@
                 </div>
             </div>
 
-            <div class="seat bottom-left" aria-label="Opponent 6">
+            <div class="seat slot-bottom-left" data-slot="1" aria-label="Seat slot">
                 <p></p>
                 <div class="cards">
                     <div class="card back"></div>
@@ -59,7 +82,7 @@
                 </div>
             </div>
 
-            <div class="seat bottom-right" aria-label="Opponent 7">
+            <div class="seat slot-bottom-right" data-slot="7" aria-label="Seat slot">
                 <p></p>
                 <div class="cards">
                     <div class="card back"></div>
@@ -67,11 +90,11 @@
                 </div>
             </div>
 
-            <div class="seat you" aria-label="You">
-                <p>You</p>
+            <div class="seat slot-bottom" data-slot="0" aria-label="Seat slot">
+                <p></p>
                 <div class="cards">
-                    <div class="card playerCard1"></div>
-                    <div class="card playerCard2"></div>
+                    <div class="card back"></div>
+                    <div class="card back"></div>
                 </div>
             </div>
 

@@ -10,9 +10,121 @@ body {
 }
 
 .container {
-	max-width: 1000px;
+	max-width: 80rem;
 	margin: auto;
 	padding: 16px;
+}
+
+.seat-picker {
+	margin-bottom: 12px;
+	padding: 12px;
+	border-radius: 12px;
+	background: rgba(0, 0, 0, 0.28);
+	border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.seat-choice-modal {
+	position: fixed;
+	inset: 0;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.55);
+	padding: 16px;
+	z-index: 1000;
+}
+
+.seat-choice-modal.open {
+	display: flex;
+}
+
+.seat-choice-modal-content {
+	width: 100%;
+	max-width: 360px;
+	background: #103f34;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	border-radius: 12px;
+	padding: 14px;
+	display: grid;
+	gap: 8px;
+}
+
+.seat-choice-modal-content h2 {
+	margin: 0 0 2px;
+	font-size: 18px;
+}
+
+.seat-choice-modal-content label {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.seat-choice-modal-content input {
+	width: 100%;
+	padding: 8px 10px;
+	border-radius: 8px;
+	border: 1px solid rgba(255, 255, 255, 0.25);
+	background: rgba(0, 0, 0, 0.25);
+	color: #fff;
+	font-size: 14px;
+}
+
+.seat-choice-error {
+	margin: 0;
+	min-height: 18px;
+	font-size: 12px;
+	font-weight: 600;
+	color: #ff7d7d;
+}
+
+.seat-choice-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.seat-choice-actions button {
+	padding: 7px 11px;
+	border-radius: 8px;
+	border: 1px solid rgba(255, 255, 255, 0.25);
+	background: rgba(0, 0, 0, 0.35);
+	color: #fff;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.seat-picker p {
+	margin: 0 0 10px;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.seat-picker-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.seat-picker-btn {
+	padding: 7px 11px;
+	border-radius: 8px;
+	border: 1px solid rgba(255, 255, 255, 0.25);
+	background: rgba(0, 0, 0, 0.3);
+	color: #fff;
+	font-size: 13px;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.seat-picker-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.seat-picker-btn.selected {
+	background: rgba(33, 173, 102, 0.9);
+	border-color: rgba(182, 255, 219, 0.9);
 }
 
 h1 {
@@ -26,8 +138,8 @@ h1 {
 
 .table {
 	position: relative;
-	height: 640px;
-	border-radius: 320px;
+	height: 50rem;
+	border-radius: 400px;
 	background: radial-gradient(circle, #167053 0%, #0f5b45 60%, #0b4736 100%);
 	border: 10px solid #2e1f12;
 	box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.2);
@@ -59,6 +171,7 @@ h1 {
 /* Rank (A, K, Q...) */
 .playerCard1Rank,
 .playerCard2Rank,
+.playerCardRank,
 .communityCardRank {
 	position: absolute;
 	top: 0;
@@ -71,6 +184,7 @@ h1 {
 /* Big suit symbol */
 .playerCard1Suit,
 .playerCard2Suit,
+.playerCardSuit,
 .communityCardSuit {
 	position: absolute;
     bottom: 0px;
@@ -117,49 +231,59 @@ h1 {
 	font-weight: bold;
 }
 
-.top {
+.seat p.status-empty {
+	color: #36d976;
+}
+
+.seat p.status-taken {
+	color: #ff6a6a;
+}
+
+.slot-top {
 	top: 26px;
 	left: 50%;
 	transform: translateX(-50%);
 }
 
-.top-left {
+.slot-top-left {
 	top: 90px;
 	left: 120px;
 }
 
-.top-right {
+.slot-top-right {
 	top: 90px;
 	right: 120px;
 }
 
-.left {
+.slot-left {
 	top: 260px;
 	left: 30px;
 }
 
-.right {
+.slot-right {
 	top: 260px;
 	right: 30px;
 }
 
-.bottom-left {
+.slot-bottom-left {
 	bottom: 120px;
 	left: 120px;
 }
 
-.bottom-right {
+.slot-bottom-right {
 	bottom: 120px;
 	right: 120px;
 }
 
-.you {
+.slot-bottom {
 	bottom: 28px;
 	left: 50%;
 	transform: translateX(-50%);
 }
 
 .community-cards {
+
+
 	position: absolute;
 	left: 50%;
 	top: 50%;
@@ -212,15 +336,15 @@ h1 {
 		border-radius: 30px;
 	}
 
-	.top-left,
-	.left,
-	.bottom-left {
+	.slot-top-left,
+	.slot-left,
+	.slot-bottom-left {
 		left: 14px;
 	}
 
-	.top-right,
-	.right,
-	.bottom-right {
+	.slot-top-right,
+	.slot-right,
+	.slot-bottom-right {
 		right: 14px;
 	}
 
