@@ -15,6 +15,10 @@ body {
 	padding: 16px;
 }
 
+.table {
+	max-height: 90vh;
+}
+
 .seat-picker {
 	margin-bottom: 12px;
 	padding: 12px;
@@ -151,8 +155,8 @@ h1 {
 }
 
 .card {
-    width: 70px;
-    height: 100px;
+    width: 84px;
+    height: 120px;
     background: #ffffff;
     border-radius: 10px;
     border: 1px solid #d3d3d3;
@@ -171,26 +175,41 @@ h1 {
 /* Rank (A, K, Q...) */
 .playerCard1Rank,
 .playerCard2Rank,
-.playerCardRank,
-.communityCardRank {
+.playerCardRank {
 	position: absolute;
 	top: 0;
     left: 8px;
 
-    font-size: 40px;
+    font-size: 45px;
     font-weight: bold;
+}
+
+.communityCardRank {
+	position: absolute;
+	top: 0;
+	left: 15px;
+
+	font-size: 55px;
+	font-weight: bold;
 }
 
 /* Big suit symbol */
 .playerCard1Suit,
 .playerCard2Suit,
-.playerCardSuit,
-.communityCardSuit {
+.playerCardSuit {
 	position: absolute;
     bottom: 0px;
-    left: 30px;
+    left: 35px;
 
-    font-size: 45px;
+    font-size: 50px;
+}
+
+.communityCardSuit {
+	position: absolute;
+	bottom: 0px;
+	left: 50px;
+
+	font-size: 65px;
 }
 
 .card.back {
@@ -229,6 +248,15 @@ h1 {
 	margin: 0 0 6px;
 	font-size: 14px;
 	font-weight: bold;
+}
+
+.seat-hand-label {
+	margin: 6px 0 0;
+	font-size: 12px;
+	font-weight: 700;
+	color: #ffe8a3;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+	display: none;
 }
 
 .seat p.status-empty {
@@ -282,8 +310,6 @@ h1 {
 }
 
 .community-cards {
-
-
 	position: absolute;
 	left: 50%;
 	top: 50%;
@@ -293,8 +319,12 @@ h1 {
 	gap: var(--board-gap);
 	align-items: center;
 	justify-content: flex-start;
-	/* Keep board centered to a fixed 5-card layout so flop/turn/river don't shift. */
-	width: calc((70px * 5) + (var(--board-gap) * 4));
+	width: calc((105px * 5) + (var(--board-gap) * 4));
+}
+
+.community-cards .card {
+	width: 105px;
+	height: 150px;
 }
 
 .pot {

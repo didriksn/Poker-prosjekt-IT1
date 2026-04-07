@@ -26,6 +26,7 @@ let currentCards = [];
 let useSuitBackgrounds = false;
 let activeHandPlayerIds = [];
 let currentCommunityCards = [];
+const handByPlayerId = new Map();
 let seatStates = Array(TOTAL_SEATS).fill(null);
 let mySeatNumber = null;
 let currentHostId = null;
@@ -275,6 +276,180 @@ function playerHasActiveHand(playerId) {
     return activeHandPlayerIds.includes(playerId);
 }
 
+function getCardRankValue(rank) {
+    const rankMap = {
+        '2': 2,
+        '3': 3,
+        '4': 4,
+        '5': 5,
+        '6': 6,
+        '7': 7,
+        '8': 8,
+        '9': 9,
+        '10': 10,
+        J: 11,
+        Q: 12,
+        K: 13,
+        A: 14
+    };
+
+    return rankMap[String(rank)] || null;
+}
+
+function findStraightHigh(rankValues) {
+    const uniqueAsc = [...new Set(rankValues)].sort((a, b) => a - b);
+    if (uniqueAsc.includes(14)) {
+        uniqueAsc.unshift(1);
+    }
+
+    let bestHigh = 0;
+    let runLength = 1;
+
+    for (let i = 1; i < uniqueAsc.length; i++) {
+        if (uniqueAsc[i] === uniqueAsc[i - 1] + 1) {
+            runLength += 1;
+            if (runLength >= 5) {
+                bestHigh = Math.max(bestHigh, uniqueAsc[i]);
+            }
+        } else {
+            runLength = 1;
+        }
+    }
+
+    return bestHigh;
+}
+
+function getBestHandName(cards) {
+    const validCards = (Array.isArray(cards) ? cards : []).filter((card) => {
+        if (!card || typeof card !== 'object') {
+            return false;
+        }
+
+        const value = getCardRankValue(card.rank);
+        return Number.isInteger(value) && typeof card.suit === 'string';
+    });
+
+    if (validCards.length === 0) {
+        return '';
+    }
+
+    const rankCounts = new Map();
+    const cardsBySuit = new Map();
+    const allRankValues = [];
+
+    validCards.forEach((card) => {
+        const value = getCardRankValue(card.rank);
+        allRankValues.push(value);
+
+        rankCounts.set(value, (rankCounts.get(value) || 0) + 1);
+
+        if (!cardsBySuit.has(card.suit)) {
+            cardsBySuit.set(card.suit, []);
+        }
+
+        cardsBySuit.get(card.suit).push(value);
+    });
+
+    let straightFlushHigh = 0;
+    let hasRoyalFlush = false;
+
+    cardsBySuit.forEach((values) => {
+        if (values.length < 5) {
+            return;
+        }
+
+        const suitUnique = [...new Set(values)];
+        const suitStraightHigh = findStraightHigh(suitUnique);
+        if (suitStraightHigh > straightFlushHigh) {
+            straightFlushHigh = suitStraightHigh;
+        }
+
+        if (suitStraightHigh === 14) {
+            const royalRanks = [10, 11, 12, 13, 14];
+            const hasAllRoyalRanks = royalRanks.every((rankValue) => suitUnique.includes(rankValue));
+            if (hasAllRoyalRanks) {
+                hasRoyalFlush = true;
+            }
+        }
+    });
+
+    if (hasRoyalFlush) {
+        return 'Royal Flush';
+    }
+
+    if (straightFlushHigh >= 5) {
+        return 'Straight Flush';
+    }
+
+    const countEntries = [...rankCounts.entries()];
+    const fourOfKind = countEntries.some(([, count]) => count === 4);
+    if (fourOfKind) {
+        return 'Four of a Kind';
+    }
+
+    const trips = countEntries
+        .filter(([, count]) => count >= 3)
+        .map(([value]) => value)
+        .sort((a, b) => b - a);
+
+    const pairs = countEntries
+        .filter(([, count]) => count >= 2)
+        .map(([value]) => value)
+        .sort((a, b) => b - a);
+
+    if (trips.length >= 1) {
+        const bestTrip = trips[0];
+        const remainingPairCandidates = pairs.filter((value) => value !== bestTrip);
+
+        if (remainingPairCandidates.length >= 1 || trips.length >= 2) {
+            return 'Full House';
+        }
+    }
+
+    const hasFlush = [...cardsBySuit.values()].some((values) => values.length >= 5);
+    if (hasFlush) return 'Flush';
+
+    const straightHigh = findStraightHigh(allRankValues);
+    if (straightHigh >= 5) return 'Straight';
+    
+    if (trips.length >= 1) return 'Three of a Kind';
+    if (pairs.length >= 2) return 'Two Pair';
+    if (pairs.length === 1) return 'Pair';
+    
+    return 'High Card';
+}
+
+function updateCurrentPlayerHandInfo() {
+    if (!socket.id) {
+        return;
+    }
+
+    handByPlayerId.delete(socket.id);
+
+    if (!playerHasActiveHand(socket.id) || currentCards.length === 0) {
+        return;
+    }
+
+    const combinedCards = [...currentCards, ...currentCommunityCards];
+    const handName = getBestHandName(combinedCards);
+
+    if (handName) {
+        handByPlayerId.set(socket.id, handName);
+    }
+}
+
+function ensureSeatHandLabelElement(seatElement) {
+    let handLabel = seatElement.querySelector('.seat-hand-label');
+
+    if (!handLabel) {
+        handLabel = document.createElement('p');
+        handLabel.className = 'seat-hand-label';
+        seatElement.appendChild(handLabel);
+    }
+
+    return handLabel;
+}
+
 function applySeatLabelColorClasses(labelElement, isEmptySeat) {
     if (!labelElement) {
         return;
@@ -299,6 +474,7 @@ function updateSeatCardVisibility() {
 
         const seatLabel = seatElement.querySelector('p');
         const seatCards = seatElement.querySelector('.cards');
+        const handLabel = ensureSeatHandLabelElement(seatElement);
         const seatState = seatStates[seatNumber - 1] || null;
 
         if (!seatState) {
@@ -315,6 +491,9 @@ function updateSeatCardVisibility() {
             if (seatCards) {
                 seatCards.style.display = 'none';
             }
+
+            handLabel.textContent = '';
+            handLabel.style.display = 'none';
 
             seatElement.classList.remove('current-player');
             continue;
@@ -334,11 +513,15 @@ function updateSeatCardVisibility() {
         seatElement.classList.toggle('current-player', isCurrentPlayer);
 
         if (!seatCards) {
+            handLabel.textContent = '';
+            handLabel.style.display = 'none';
             continue;
         }
 
         if (!hasActiveHand) {
             seatCards.style.display = 'none';
+            handLabel.textContent = '';
+            handLabel.style.display = 'none';
             continue;
         }
 
@@ -348,6 +531,15 @@ function updateSeatCardVisibility() {
             renderFaceCards(seatCards, currentCards);
         } else {
             renderBackCards(seatCards);
+        }
+
+        const handName = handByPlayerId.get(seatState.playerId);
+        if (handName) {
+            handLabel.textContent = handName;
+            handLabel.style.display = 'block';
+        } else {
+            handLabel.textContent = '';
+            handLabel.style.display = 'none';
         }
     }
 }
@@ -412,6 +604,7 @@ updateSeatPickerVisibility();
 
 socket.on('receiveCards', (cards) => {
     currentCards = Array.isArray(cards) ? cards : [];
+    updateCurrentPlayerHandInfo();
     updateSeatCardVisibility();
 });
 
@@ -433,11 +626,13 @@ socket.on('seatAssignmentsUpdate', (allSeatStates) => {
     updateSeatPickerVisibility();
     updateSeatPickerButtons();
     updateHostControls();
+    updateCurrentPlayerHandInfo();
     updateSeatCardVisibility();
 });
 
 socket.on('activeHandsUpdate', (playerIdsWithHands) => {
     activeHandPlayerIds = Array.isArray(playerIdsWithHands) ? playerIdsWithHands : [];
+    updateCurrentPlayerHandInfo();
     updateSeatCardVisibility();
 });
 
@@ -474,6 +669,8 @@ socket.on('roundStateUpdate', (roundState) => {
         : [];
 
     displayCommunityCards(currentCommunityCards);
+    updateCurrentPlayerHandInfo();
+    updateSeatCardVisibility();
 
     if (typeof roundState.actionLabel === 'string' && startRoundBtn) {
         startRoundBtn.textContent = roundState.actionLabel;
