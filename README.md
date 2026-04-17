@@ -1,1 +1,2 @@
-# Poker game
+# Poker spill
+Enkel poker nettside

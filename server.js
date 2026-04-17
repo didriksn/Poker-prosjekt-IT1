@@ -1,5 +1,89 @@
-const io = require('socket.io')(3000, {
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const sqlite3 = require('sqlite3').verbose();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const server = http.createServer(app);
+const io = new Server(server, {
     cors: { origin: "*" } 
+});
+
+let currentGameId = null;
+let currentRoundId = null;
+
+const db = new sqlite3.Database('./poker.db', (err) => {
+    if (err) {
+        console.error("Database connection error:", err.message);
+    } else {
+        console.log('Connected to the poker SQLite database.');
+        db.run('PRAGMA foreign_keys = ON;');
+        
+        db.serialize(() => {
+            db.run(`CREATE TABLE IF NOT EXISTS game (
+                game_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                start_time INTEGER
+            )`);
+
+            db.run(`CREATE TABLE IF NOT EXISTS user (
+                user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL
+            )`);
+
+            db.run(`CREATE TABLE IF NOT EXISTS user_game (
+                user_id INTEGER,
+                game_id INTEGER,
+                buy_ins INTEGER,
+                PRIMARY KEY (user_id, game_id),
+                FOREIGN KEY (user_id) REFERENCES user(user_id),
+                FOREIGN KEY (game_id) REFERENCES game(game_id)
+            )`);
+
+            db.run(`CREATE TABLE IF NOT EXISTS round (
+                round_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id INTEGER,
+                timestamp INTEGER,
+                community_cards TEXT,
+                FOREIGN KEY (game_id) REFERENCES game(game_id)
+            )`);
+
+            db.run(`CREATE TABLE IF NOT EXISTS round_hand (
+                round_id INTEGER,
+                user_id INTEGER,
+                hand_type TEXT,
+                PRIMARY KEY (round_id, user_id),
+                FOREIGN KEY (round_id) REFERENCES round(round_id),
+                FOREIGN KEY (user_id) REFERENCES user(user_id)
+            )`);
+
+            db.run('INSERT INTO game (start_time) VALUES (?)', [Date.now()], function(err) {
+                if (err) console.error("Failed to create game:", err.message);
+                else {
+                    currentGameId = this.lastID;
+                    console.log(`New Game Started in DB (Game ID: ${currentGameId})`);
+                }
+            });
+        });
+    }
+});
+
+app.get('/api/games', (req, res) => {
+    db.all('SELECT * FROM game', [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+app.get('/api/users/:username', (req, res) => {
+    db.get('SELECT * FROM user WHERE username = ?', [req.params.username], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(row || { error: "User not found" });
+    });
 });
 
 let cardranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
@@ -15,8 +99,8 @@ function getNewDeck() {
     return deck;
 }
 
+// Fisher-Yates shuffle
 function shuffleDeck(deck) {
-    // Fisher-Yates shuffle for an unbiased in-place shuffle.
     for (let i = deck.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -48,9 +132,7 @@ function getPlayersInSeatOrder() {
 
 function clearPlayerSeat(playerId) {
     const seatNumber = playerSeats.get(playerId);
-    if (!seatNumber) {
-        return;
-    }
+    if (!seatNumber) return;
 
     seatAssignments[seatNumber - 1] = null;
     playerSeats.delete(playerId);
@@ -59,10 +141,7 @@ function clearPlayerSeat(playerId) {
 
 function getSeatStates() {
     return seatAssignments.map((playerId) => {
-        if (!playerId) {
-            return null;
-        }
-
+        if (!playerId) return null;
         const playerProfile = playerProfiles.get(playerId) || {};
         return {
             playerId,
@@ -83,14 +162,8 @@ function emitActiveHandsState() {
 }
 
 function getAdvanceButtonLabel() {
-    if (!roundInProgress) {
-        return 'Start Round';
-    }
-
-    if (currentStreet === 'river') {
-        return 'Start New Round';
-    }
-
+    if (!roundInProgress) return 'Start Round';
+    if (currentStreet === 'river') return 'Start New Round';
     return 'Advance Round';
 }
 
@@ -104,29 +177,19 @@ function emitRoundState() {
 }
 
 function dealHandFromDeck(deck) {
-    if (deck.length < 2) {
-        return null;
-    }
-
+    if (deck.length < 2) return null;
     const card1 = deck.pop();
     const card2 = deck.pop();
     return [card1, card2];
 }
 
 function dealCommunityCards(amount) {
-    if (currentRoundDeck.length < amount) {
-        return false;
-    }
-
+    if (currentRoundDeck.length < amount) return false;
     for (let i = 0; i < amount; i++) {
         const card = currentRoundDeck.pop();
-        if (!card) {
-            return false;
-        }
-
+        if (!card) return false;
         communityCards.push(card);
     }
-
     return true;
 }
 
@@ -144,25 +207,39 @@ function startRound() {
         console.log('Not enough cards in the deck for all players.');
         roundInProgress = false;
         currentStreet = 'idle';
-        communityCards = [];
         emitActiveHandsState();
         emitRoundState();
         return;
     }
 
-    for (let playerId of playersInSeatOrder) {
-        const hand = dealHandFromDeck(currentRoundDeck);
-        if (!hand) {
-            roundInProgress = false;
-            break;
-        }
+    if (currentGameId) {
+        db.run('INSERT INTO round (game_id, timestamp) VALUES (?, ?)', [currentGameId, Date.now()], function(err) {
+            if (err) console.error("Failed to insert round:", err.message);
+            else {
+                currentRoundId = this.lastID;
 
-        playerHands.set(playerId, hand);
-        io.to(playerId).emit('receiveCards', hand);
+                for (let playerId of playersInSeatOrder) {
+                    const hand = dealHandFromDeck(currentRoundDeck);
+                    if (!hand) {
+                        roundInProgress = false;
+                        break;
+                    }
+
+                    playerHands.set(playerId, hand);
+                    io.to(playerId).emit('receiveCards', hand);
+
+                    const profile = playerProfiles.get(playerId);
+                    if (profile && profile.dbUserId) {
+                        const handString = hand.map(c => c.rank + c.suit).join(',');
+                        db.run('INSERT INTO round_hand (round_id, user_id, hand_type) VALUES (?, ?, ?)', 
+                            [currentRoundId, profile.dbUserId, handString]);
+                    }
+                }
+                emitActiveHandsState();
+                emitRoundState();
+            }
+        });
     }
-
-    emitActiveHandsState();
-    emitRoundState();
 }
 
 function advanceRound() {
@@ -172,110 +249,81 @@ function advanceRound() {
     }
 
     if (currentStreet === 'preflop') {
-        if (dealCommunityCards(3)) {
-            currentStreet = 'flop';
-        }
+        if (dealCommunityCards(3)) currentStreet = 'flop';
     } else if (currentStreet === 'flop') {
-        if (dealCommunityCards(1)) {
-            currentStreet = 'turn';
-        }
+        if (dealCommunityCards(1)) currentStreet = 'turn';
     } else if (currentStreet === 'turn') {
-        if (dealCommunityCards(1)) {
-            currentStreet = 'river';
-        }
+        if (dealCommunityCards(1)) currentStreet = 'river';
     } else if (currentStreet === 'river') {
         startRound();
         return;
     }
 
+    if (currentRoundId && communityCards.length > 0) {
+        const communityString = communityCards.map(c => c.rank + c.suit).join(',');
+        db.run('UPDATE round SET community_cards = ? WHERE round_id = ?', [communityString, currentRoundId]);
+    }
+
     emitRoundState();
 }
-
 
 io.on('connection', (socket) => {
     console.log('A player connected. ID:', socket.id);
 
     emitPlayerState();
-
-    if (roundInProgress) {
-        // Players joining mid-round should wait for the next round.
-        socket.emit('receiveCards', []);
-    } else {
-        socket.emit('receiveCards', []);
-    }
-
+    socket.emit('receiveCards', []);
     emitActiveHandsState();
     emitRoundState();
 
     socket.on('chooseSeat', (choiceData) => {
-        const seatNumber = typeof choiceData === 'number'
-            ? choiceData
-            : choiceData?.seatNumber;
-        const name = typeof choiceData?.name === 'string'
-            ? choiceData.name.trim()
-            : '';
+        const seatNumber = typeof choiceData === 'number' ? choiceData : choiceData?.seatNumber;
+        const name = typeof choiceData?.name === 'string' ? choiceData.name.trim() : '';
         const chips = Number(choiceData?.chips);
 
-        if (playerSeats.has(socket.id)) {
-            socket.emit('seatChoiceError', 'You already chose a seat.');
-            return;
-        }
+        if (playerSeats.has(socket.id)) return socket.emit('seatChoiceError', 'You already chose a seat.');
+        if (!isValidSeatNumber(seatNumber)) return socket.emit('seatChoiceError', 'Invalid seat number. Choose a seat from 1 to 8.');
+        if (seatAssignments[seatNumber - 1]) return socket.emit('seatChoiceError', `Seat ${seatNumber} is already occupied.`);
+        if (name.length < 3) return socket.emit('seatChoiceError', 'Name must be at least 3 characters long.');
+        if (!Number.isFinite(chips) || chips < 0) return socket.emit('seatChoiceError', 'Chips must be a number of 0 or more.');
 
-        if (!isValidSeatNumber(seatNumber)) {
-            socket.emit('seatChoiceError', 'Invalid seat number. Choose a seat from 1 to 8.');
-            return;
-        }
+        db.get('SELECT user_id FROM user WHERE username = ?', [name], (err, row) => {
+            if (err) return socket.emit('seatChoiceError', 'Database error.');
 
-        if (seatAssignments[seatNumber - 1]) {
-            socket.emit('seatChoiceError', `Seat ${seatNumber} is already occupied.`);
-            return;
-        }
+            const joinTable = (dbUserId) => {
+                db.run('INSERT OR IGNORE INTO user_game (user_id, game_id, buy_ins) VALUES (?, ?, ?)', [dbUserId, currentGameId, chips]);
 
-        if (name.length < 3) {
-            socket.emit('seatChoiceError', 'Name must be at least 3 characters long.');
-            return;
-        }
+                seatAssignments[seatNumber - 1] = socket.id;
+                playerSeats.set(socket.id, seatNumber);
+                playerProfiles.set(socket.id, { name, chips: Math.floor(chips), dbUserId });
+                connectedPlayerIDs.push(socket.id);
 
-        if (!Number.isFinite(chips) || chips < 0) {
-            socket.emit('seatChoiceError', 'Chips must be a number of 0 or more.');
-            return;
-        }
+                console.log(`Player ${socket.id} (DB ID: ${dbUserId}) sat in seat ${seatNumber}.`);
+                socket.emit('seatChosenSuccess', { seatNumber, name, chips: Math.floor(chips) });
+                emitPlayerState();
+                emitActiveHandsState();
+                emitRoundState();
+            };
 
-        seatAssignments[seatNumber - 1] = socket.id;
-        playerSeats.set(socket.id, seatNumber);
-        playerProfiles.set(socket.id, {
-            name,
-            chips: Math.floor(chips)
+            if (row) joinTable(row.user_id);
+            else {
+                db.run('INSERT INTO user (username, password_hash) VALUES (?, ?)', [name, 'placeholder_hash'], function(err) {
+                    if (err) return socket.emit('seatChoiceError', 'Failed to create user.');
+                    joinTable(this.lastID);
+                });
+            }
         });
-        connectedPlayerIDs.push(socket.id);
-
-        console.log(`Player ${socket.id} sat in seat ${seatNumber}.`);
-        socket.emit('seatChosenSuccess', { seatNumber, name, chips: Math.floor(chips) });
-        emitPlayerState();
-        emitActiveHandsState();
-        emitRoundState();
     });
 
     socket.on('advanceRoundRequest', () => {
-        if (socket.id !== getHostId()) {
-            return;
-        }
-
-        advanceRound();
+        if (socket.id === getHostId()) advanceRound();
     });
 
-    // Backwards compatible event name.
     socket.on('startRoundRequest', () => {
-        if (socket.id !== getHostId()) {
-            return;
-        }
-
-        advanceRound();
+        if (socket.id === getHostId()) advanceRound();
     });
 
     socket.on('disconnect', () => {
         console.log('Player left the table:', socket.id);
-
         clearPlayerSeat(socket.id);
         connectedPlayerIDs = connectedPlayerIDs.filter(id => id !== socket.id);
         playerHands.delete(socket.id);
@@ -286,4 +334,6 @@ io.on('connection', (socket) => {
     });
 });
 
-console.log("Poker Server running on port 3000...");
+server.listen(3000, () => {
+    console.log("Poker Server running on http://localhost:3000");
+});
