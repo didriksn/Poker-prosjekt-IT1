@@ -9,6 +9,7 @@ const seatPickerButtonsElement = document.getElementById('seatPickerButtons');
 const seatChoiceModal = document.getElementById('seatChoiceModal');
 const seatChoiceTitle = document.getElementById('seatChoiceTitle');
 const seatPlayerNameInput = document.getElementById('seatPlayerName');
+const seatPlayerPasswordInput = document.getElementById('seatPlayerPassword');
 const seatPlayerChipsInput = document.getElementById('seatPlayerChips');
 const seatChoiceErrorElement = document.getElementById('seatChoiceError');
 const seatChoiceCancelBtn = document.getElementById('seatChoiceCancel');
@@ -554,10 +555,16 @@ function submitSeatChoice() {
     }
 
     const nameValue = (seatPlayerNameInput?.value || '').trim();
+    const passwordValue = (seatPlayerPasswordInput?.value || '').trim();
     const chipsValue = Number(seatPlayerChipsInput?.value);
 
     if (nameValue.length < 3) {
         showSeatChoiceError('Name must be at least 3 characters.');
+        return;
+    }
+
+    if (!passwordValue) {
+        showSeatChoiceError('Password is required.');
         return;
     }
 
@@ -568,11 +575,11 @@ function submitSeatChoice() {
 
     const selectedSeat = pendingSeatNumber;
     setSeatPickerStatus(`Trying to take seat ${selectedSeat}...`);
-    closeSeatChoiceModal();
 
     socket.emit('chooseSeat', {
         seatNumber: selectedSeat,
         name: nameValue,
+        password: passwordValue,
         chips: Math.floor(chipsValue)
     });
 }
@@ -645,12 +652,17 @@ socket.on('seatChosenSuccess', ({ seatNumber }) => {
     setSeatPickerStatus(`You are seated at seat ${seatNumber}.`);
     updateSeatPickerVisibility();
     updateSeatPickerButtons();
+    closeSeatChoiceModal();
 });
 
 socket.on('seatChoiceError', (message) => {
     const fallbackMessage = 'Seat selection failed. Please try another seat.';
     setSeatPickerStatus(typeof message === 'string' ? message : fallbackMessage);
     updateSeatPickerButtons();
+    if (seatChoiceModal) {
+        seatChoiceModal.classList.add('open');
+        seatChoiceModal.setAttribute('aria-hidden', 'false');
+    }
 });
 
 socket.on('connect', () => {

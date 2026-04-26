@@ -2,11 +2,13 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -124,6 +126,19 @@ function getHostId() {
 
 function isValidSeatNumber(seatNumber) {
     return Number.isInteger(seatNumber) && seatNumber >= 1 && seatNumber <= TOTAL_SEATS;
+}
+
+function normalizePasswordValue(value) {
+    if (typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    const hasWrappingSingleQuotes = trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2;
+    const hasWrappingDoubleQuotes = trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2;
+
+    if (hasWrappingSingleQuotes || hasWrappingDoubleQuotes) {
+        return trimmed.slice(1, -1).trim();
+    }
+
+    return trimmed;
 }
 
 function getPlayersInSeatOrder() {
@@ -278,39 +293,42 @@ io.on('connection', (socket) => {
     socket.on('chooseSeat', (choiceData) => {
         const seatNumber = typeof choiceData === 'number' ? choiceData : choiceData?.seatNumber;
         const name = typeof choiceData?.name === 'string' ? choiceData.name.trim() : '';
+        const password = typeof choiceData?.password === 'string' ? choiceData.password : '';
         const chips = Number(choiceData?.chips);
 
         if (playerSeats.has(socket.id)) return socket.emit('seatChoiceError', 'You already chose a seat.');
         if (!isValidSeatNumber(seatNumber)) return socket.emit('seatChoiceError', 'Invalid seat number. Choose a seat from 1 to 8.');
         if (seatAssignments[seatNumber - 1]) return socket.emit('seatChoiceError', `Seat ${seatNumber} is already occupied.`);
         if (name.length < 3) return socket.emit('seatChoiceError', 'Name must be at least 3 characters long.');
+        if (!password) return socket.emit('seatChoiceError', 'Password is required.');
         if (!Number.isFinite(chips) || chips < 0) return socket.emit('seatChoiceError', 'Chips must be a number of 0 or more.');
 
-        db.get('SELECT user_id FROM user WHERE username = ?', [name], (err, row) => {
+        db.get('SELECT user_id, password_hash FROM user WHERE password_hash IS NOT NULL AND TRIM(password_hash) <> "" ORDER BY user_id ASC LIMIT 1', (err, row) => {
             if (err) return socket.emit('seatChoiceError', 'Database error.');
 
-            const joinTable = (dbUserId) => {
-                db.run('INSERT OR IGNORE INTO user_game (user_id, game_id, buy_ins) VALUES (?, ?, ?)', [dbUserId, currentGameId, chips]);
-
-                seatAssignments[seatNumber - 1] = socket.id;
-                playerSeats.set(socket.id, seatNumber);
-                playerProfiles.set(socket.id, { name, chips: Math.floor(chips), dbUserId });
-                connectedPlayerIDs.push(socket.id);
-
-                console.log(`Player ${socket.id} (DB ID: ${dbUserId}) sat in seat ${seatNumber}.`);
-                socket.emit('seatChosenSuccess', { seatNumber, name, chips: Math.floor(chips) });
-                emitPlayerState();
-                emitActiveHandsState();
-                emitRoundState();
-            };
-
-            if (row) joinTable(row.user_id);
-            else {
-                db.run('INSERT INTO user (username, password_hash) VALUES (?, ?)', [name, 'placeholder_hash'], function(err) {
-                    if (err) return socket.emit('seatChoiceError', 'Failed to create user.');
-                    joinTable(this.lastID);
-                });
+            if (!row) {
+                return socket.emit('seatChoiceError', 'No universal password configured in database.');
             }
+
+            const providedPassword = normalizePasswordValue(password);
+            const storedPassword = normalizePasswordValue(row.password_hash);
+
+            if (!providedPassword || providedPassword !== storedPassword) {
+                return socket.emit('seatChoiceError', 'Invalid password.');
+            }
+
+            db.run('INSERT OR IGNORE INTO user_game (user_id, game_id, buy_ins) VALUES (?, ?, ?)', [row.user_id, currentGameId, chips]);
+
+            seatAssignments[seatNumber - 1] = socket.id;
+            playerSeats.set(socket.id, seatNumber);
+            playerProfiles.set(socket.id, { name, chips: Math.floor(chips), dbUserId: row.user_id });
+            connectedPlayerIDs.push(socket.id);
+
+            console.log(`Player ${socket.id} (DB ID: ${row.user_id}) sat in seat ${seatNumber}.`);
+            socket.emit('seatChosenSuccess', { seatNumber, name, chips: Math.floor(chips) });
+            emitPlayerState();
+            emitActiveHandsState();
+            emitRoundState();
         });
     });
 
