@@ -554,12 +554,12 @@ function submitSeatChoice() {
         return;
     }
 
-    const nameValue = (seatPlayerNameInput?.value || '').trim();
+    const usernameValue = (seatPlayerNameInput?.value || '').trim();
     const passwordValue = (seatPlayerPasswordInput?.value || '').trim();
     const chipsValue = Number(seatPlayerChipsInput?.value);
 
-    if (nameValue.length < 3) {
-        showSeatChoiceError('Name must be at least 3 characters.');
+    if (!usernameValue) {
+        showSeatChoiceError('Username is required.');
         return;
     }
 
@@ -578,7 +578,7 @@ function submitSeatChoice() {
 
     socket.emit('chooseSeat', {
         seatNumber: selectedSeat,
-        name: nameValue,
+        username: usernameValue,
         password: passwordValue,
         chips: Math.floor(chipsValue)
     });
